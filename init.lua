@@ -4,6 +4,7 @@ if not minetest.settings:get_bool("enable_damage") then
 end
 
 stamina = {}
+
 local modname = minetest.get_current_modname()
 local armor_mod = minetest.get_modpath("3d_armor") and minetest.global_exists("armor") and armor.def
 local player_monoids_mod = minetest.get_modpath("player_monoids") and minetest.global_exists("player_monoids")
@@ -50,8 +51,9 @@ stamina.settings = {
 	starve_lvl = get_setting("starve_lvl", 3),
 	visual_max = get_setting("visual_max", 20),
 }
-local settings = stamina.settings
 
+local settings = stamina.settings
+local state = {}
 local attribute = {
 	saturation = "stamina:level",
 	poisoned = "stamina:poisoned",
@@ -275,26 +277,14 @@ function stamina.set_sprinting(player, sprinting)
 			pova.do_override(player)
 		end
 	else
-		local def
-		if armor_mod then
-			-- Get player physics from 3d_armor mod
-			local name = player:get_player_name()
-			def = {
-				speed=armor.def[name].speed,
-				jump=armor.def[name].jump,
-				gravity=armor.def[name].gravity
-			}
-		else
-			def = {
-				speed=1,
-				jump=1,
-				gravity=1
-			}
-		end
-
+		local def = player:get_physics_override()
+		if not def then return end
 		if sprinting then
 			def.speed = def.speed + settings.sprint_speed
 			def.jump = def.jump + settings.sprint_jump
+		else
+			def.speed = def.speed - settings.sprint_speed
+			def.jump = def.jump - settings.sprint_jump
 		end
 
 		player:set_physics_override(def)
@@ -351,14 +341,16 @@ local function move_tick()
 				(settings.sprint_with_fast or not minetest.check_player_privs(player, {fast = true})) and
 				stamina.get_saturation(player) > settings.sprint_lvl
 			)
-
-			if can_sprint then
+			local name = player:get_player_name()
+			if can_sprint and not state[name].sprint then
 				stamina.set_sprinting(player, true)
+				state[name].sprint = true
 				if is_moving and has_velocity then
 					stamina.exhaust_player(player, settings.exhaust_sprint, stamina.exhaustion_reasons.sprint)
 				end
-			else
+			elseif not can_sprint and state[name].sprint then
 				stamina.set_sprinting(player, false)
+				state[name].sprint = false
 			end
 		end
 	end
@@ -525,6 +517,12 @@ function minetest.do_item_eat(hp_change, replace_with_item, itemstack, player, p
 end
 
 minetest.register_on_joinplayer(function(player)
+	local name = player:get_player_name()
+	if not state[name] then
+		state[name] = {
+			sprint = false,
+		}
+	end
 	local level = stamina.get_saturation(player) or settings.visual_max
 	local id = player:hud_add({
 		name = "stamina",
@@ -549,6 +547,7 @@ end)
 
 minetest.register_on_leaveplayer(function(player)
 	set_hud_id(player, nil)
+	state[player:get_player_name()] = nil
 end)
 
 minetest.register_globalstep(stamina_globaltimer)
