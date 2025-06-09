@@ -283,7 +283,7 @@ function stamina.set_sprinting(player, sprinting)
 		end
 	else
 		local def = player:get_physics_override()
-		if not def then return end
+		
 		if sprinting then
 			def.speed = def.speed + settings.sprint_speed
 			def.jump = def.jump + settings.sprint_jump
