@@ -3,6 +3,10 @@ if not minetest.settings:get_bool("enable_damage") then
 	return
 end
 
+if not player_monoids_mod and not pova_mod then
+	stamina.log("warning", "Neither 'player_monoids' nor 'pova' mod detected. Stamina sprinting will fall back to limited physics overrides.")
+end
+
 stamina = {}
 
 local modname = minetest.get_current_modname()
@@ -251,6 +255,8 @@ function stamina.register_on_sprinting(fun)
 end
 
 function stamina.set_sprinting(player, sprinting)
+	if not player:get_pos() then return end
+	
 	for _, fun in ipairs(stamina.registered_on_sprintings) do
 		local rv = fun(player, sprinting)
 		if rv == true then
